@@ -1,10 +1,10 @@
 module github.com/synapseai/platform/services/ai
 
-go 1.24.0
+go 1.21
 
 require (
 	github.com/synapseai/platform v0.0.0
-	google.golang.org/grpc v1.60.1
+	google.golang.org/grpc v1.64.0
 )
 
 require (

@@ -1,13 +1,13 @@
 module github.com/synapseai/platform/services/content
 
-go 1.24.0
+go 1.21
 
 require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/rs/cors v1.10.1
 	github.com/synapseai/platform v0.0.0
-	google.golang.org/grpc v1.60.1
+	google.golang.org/grpc v1.64.0
 )
 
 require (

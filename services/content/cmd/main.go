@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
 	"github.com/rs/cors"
 	"github.com/synapseai/platform/pkg/config"
 	"github.com/synapseai/platform/pkg/logger"
@@ -26,14 +27,14 @@ import (
 
 type contentServer struct {
 	pb.UnimplementedContentServiceServer
-	db     *sql.DB
-	rmq    *rabbitmq.Client
+	db  *sql.DB
+	rmq *rabbitmq.Client
 }
 
 func (s *contentServer) GetContent(ctx context.Context, req *pb.GetContentRequest) (*pb.GetContentResponse, error) {
 	var content pb.GetContentResponse
 	query := `SELECT content_id, user_id, title, file_path, file_type, file_size, description, uploaded_at FROM content WHERE content_id = $1 AND user_id = $2`
-	
+
 	err := s.db.QueryRow(query, req.ContentId, req.UserId).Scan(
 		&content.ContentId, &content.UserId, &content.Title, &content.FilePath,
 		&content.FileType, &content.FileSize, &content.Description, &content.UploadedAt,
@@ -41,20 +42,20 @@ func (s *contentServer) GetContent(ctx context.Context, req *pb.GetContentReques
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &content, nil
 }
 
 func (s *contentServer) ListContent(ctx context.Context, req *pb.ListContentRequest) (*pb.ListContentResponse, error) {
 	query := `SELECT content_id, title, file_type, file_size, uploaded_at FROM content WHERE user_id = $1 ORDER BY uploaded_at DESC LIMIT $2 OFFSET $3`
-	
+
 	offset := (req.Page - 1) * req.Limit
 	rows, err := s.db.Query(query, req.UserId, req.Limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var items []*pb.ContentItem
 	for rows.Next() {
 		var item pb.ContentItem
@@ -64,10 +65,10 @@ func (s *contentServer) ListContent(ctx context.Context, req *pb.ListContentRequ
 		}
 		items = append(items, &item)
 	}
-	
+
 	var total int32
 	s.db.QueryRow(`SELECT COUNT(*) FROM content WHERE user_id = $1`, req.UserId).Scan(&total)
-	
+
 	return &pb.ListContentResponse{Items: items, Total: total, Page: req.Page, Limit: req.Limit}, nil
 }
 
@@ -177,9 +178,9 @@ func initDB(db *sql.DB) error {
 			file_type VARCHAR(100),
 			file_size BIGINT,
 			description TEXT,
-			uploaded_at TIMESTAMP NOT NULL,
-			INDEX idx_user_id (user_id)
+			uploaded_at TIMESTAMP NOT NULL
 		);
+		CREATE INDEX IF NOT EXISTS idx_user_id ON content(user_id);
 	`
 	_, err := db.Exec(schema)
 	return err
@@ -232,11 +233,11 @@ func main() {
 	// Start HTTP server
 	r := mux.NewRouter()
 	handler := &httpHandler{db: db, rmq: rmqClient}
-	
+
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}).Methods("GET")
-	
+
 	r.HandleFunc("/upload", handler.uploadContent).Methods("POST")
 
 	c := cors.New(cors.Options{
