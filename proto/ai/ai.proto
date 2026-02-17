@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package ai;
+
+option go_package = "github.com/synapseai/platform/proto/ai";
+
+service AIService {
+  rpc GenerateSummary(GenerateSummaryRequest) returns (GenerateSummaryResponse);
+  rpc GenerateQuiz(GenerateQuizRequest) returns (GenerateQuizResponse);
+  rpc GenerateFlashcards(GenerateFlashcardsRequest) returns (GenerateFlashcardsResponse);
+  rpc AnalyzeContent(AnalyzeContentRequest) returns (AnalyzeContentResponse);
+}
+
+//
+message GenerateSummaryRequest {
+  string content_id = 1;
+  string content_text = 2;
+  string user_id = 3;
+  int32 max_length = 4;
+}
+
+message GenerateSummaryResponse {
+  string summary = 1;
+  int32 word_count = 2;
+  string error = 3;
+}
+
+message GenerateQuizRequest {
+  string content_id = 1;
+  string content_text = 2;
+  string user_id = 3;
+  int32 num_questions = 4;
+  string difficulty = 5;
+}
+
+message GenerateQuizResponse {
+  string quiz_id = 1;
+  repeated QuizQuestion questions = 2;
+  string error = 3;
+}
+
+message QuizQuestion {
+  string question = 1;
+  repeated string options = 2;
+  int32 correct_option = 3;
+  string explanation = 4;
+}
+
+message GenerateFlashcardsRequest {
+  string content_id = 1;
+  string content_text = 2;
+  string user_id = 3;
+  int32 num_cards = 4;
+}
+
+message GenerateFlashcardsResponse {
+  repeated Flashcard flashcards = 1;
+  string error = 2;
+}
+
+message Flashcard {
+  string front = 1;
+  string back = 2;
+}
+
+message AnalyzeContentRequest {
+  string content_id = 1;
+  string content_text = 2;
+}
+
+message AnalyzeContentResponse {
+  string difficulty_level = 1;
+  repeated string topics = 2;
+  repeated string keywords = 3;
+  int32 estimated_reading_time = 4;
+}
