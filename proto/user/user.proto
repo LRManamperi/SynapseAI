@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "github.com/synapseai/platform/proto/user";
+
+service UserService {
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+  rpc GetPreferences(GetPreferencesRequest) returns (GetPreferencesResponse);
+  rpc UpdatePreferences(UpdatePreferencesRequest) returns (UpdatePreferencesResponse);
+  rpc GetLearningGoals(GetLearningGoalsRequest) returns (GetLearningGoalsResponse);
+  rpc UpdateLearningGoals(UpdateLearningGoalsRequest) returns (UpdateLearningGoalsResponse);
+}
+
+message GetProfileRequest {
+  string user_id = 1;
+}
+
+message GetProfileResponse {
+  string user_id = 1;
+  string name = 2;
+  string email = 3;
+  string avatar_url = 4;
+  string bio = 5;
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+message UpdateProfileRequest {
+  string user_id = 1;
+  string name = 2;
+  string bio = 3;
+  string avatar_url = 4;
+}
+
+message UpdateProfileResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetPreferencesRequest {
+  string user_id = 1;
+}
+
+message GetPreferencesResponse {
+  string user_id = 1;
+  string language = 2;
+  string difficulty_level = 3;
+  repeated string interests = 4;
+  bool email_notifications = 5;
+  bool push_notifications = 6;
+}
+
+message UpdatePreferencesRequest {
+  string user_id = 1;
+  string language = 2;
+  string difficulty_level = 3;
+  repeated string interests = 4;
+  bool email_notifications = 5;
+  bool push_notifications = 6;
+}
+
+message UpdatePreferencesResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetLearningGoalsRequest {
+  string user_id = 1;
+}
+
+message GetLearningGoalsResponse {
+  repeated LearningGoal goals = 1;
+}
+
+message LearningGoal {
+  string goal_id = 1;
+  string title = 2;
+  string description = 3;
+  string target_date = 4;
+  int32 progress = 5;
+  string status = 6;
+}
+
+message UpdateLearningGoalsRequest {
+  string user_id = 1;
+  repeated LearningGoal goals = 2;
+}
+
+message UpdateLearningGoalsResponse {
+  bool success = 1;
+  string message = 2;
+}

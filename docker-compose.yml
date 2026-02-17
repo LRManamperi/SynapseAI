@@ -1,0 +1,302 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  nginx:
+    image: nginx:alpine
+    container_name: synapseai-gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./gateway/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth-service
+      - content-service
+      - quiz-service
+    networks:
+      - synapseai-network
+
+  # Databases
+  postgres-auth:
+    image: postgres:15-alpine
+    container_name: postgres-auth
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: synapseai
+      POSTGRES_PASSWORD: synapseai123
+      POSTGRES_DB: auth_db
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres-auth-data:/var/lib/postgresql/data
+    networks:
+      - synapseai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapseai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-user:
+    image: postgres:15-alpine
+    container_name: postgres-user
+    environment:
+      POSTGRES_USER: synapseai
+      POSTGRES_PASSWORD: synapseai123
+      POSTGRES_DB: user_db
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+    networks:
+      - synapseai-network
+
+  postgres-content:
+    image: postgres:15-alpine
+    container_name: postgres-content
+    environment:
+      POSTGRES_USER: synapseai
+      POSTGRES_PASSWORD: synapseai123
+      POSTGRES_DB: content_db
+    volumes:
+      - postgres-content-data:/var/lib/postgresql/data
+    networks:
+      - synapseai-network
+
+  postgres-quiz:
+    image: postgres:15-alpine
+    container_name: postgres-quiz
+    environment:
+      POSTGRES_USER: synapseai
+      POSTGRES_PASSWORD: synapseai123
+      POSTGRES_DB: quiz_db
+    volumes:
+      - postgres-quiz-data:/var/lib/postgresql/data
+    networks:
+      - synapseai-network
+
+  postgres-progress:
+    image: postgres:15-alpine
+    container_name: postgres-progress
+    environment:
+      POSTGRES_USER: synapseai
+      POSTGRES_PASSWORD: synapseai123
+      POSTGRES_DB: progress_db
+    volumes:
+      - postgres-progress-data:/var/lib/postgresql/data
+    networks:
+      - synapseai-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: synapseai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - synapseai-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: synapseai-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - synapseai-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Microservices
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    container_name: auth-service
+    ports:
+      - "8001:8001"
+      - "9001:9001"
+    environment:
+      DB_HOST: postgres-auth
+      DB_PORT: 5432
+      DB_USER: synapseai
+      DB_PASSWORD: synapseai123
+      DB_NAME: auth_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_EXPIRY: 24h
+      SERVER_PORT: 8001
+      GRPC_PORT: 9001
+      SERVICE_NAME: auth-service
+      ENVIRONMENT: development
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - synapseai-network
+
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user/Dockerfile
+    container_name: user-service
+    ports:
+      - "8002:8002"
+      - "9002:9002"
+    environment:
+      DB_HOST: postgres-user
+      DB_PORT: 5432
+      DB_USER: synapseai
+      DB_PASSWORD: synapseai123
+      DB_NAME: user_db
+      SERVER_PORT: 8002
+      GRPC_PORT: 9002
+      SERVICE_NAME: user-service
+      ENVIRONMENT: development
+    depends_on:
+      - postgres-user
+    networks:
+      - synapseai-network
+
+  content-service:
+    build:
+      context: .
+      dockerfile: services/content/Dockerfile
+    container_name: content-service
+    ports:
+      - "8003:8003"
+      - "9003:9003"
+    environment:
+      DB_HOST: postgres-content
+      DB_PORT: 5432
+      DB_USER: synapseai
+      DB_PASSWORD: synapseai123
+      DB_NAME: content_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      SERVER_PORT: 8003
+      GRPC_PORT: 9003
+      SERVICE_NAME: content-service
+      ENVIRONMENT: development
+    depends_on:
+      - postgres-content
+      - rabbitmq
+    volumes:
+      - content-uploads:/root/uploads
+    networks:
+      - synapseai-network
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: services/ai/Dockerfile
+    container_name: ai-service
+    ports:
+      - "9004:9004"
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-your-openai-key}
+      GRPC_PORT: 9004
+      SERVICE_NAME: ai-service
+      ENVIRONMENT: development
+    depends_on:
+      - rabbitmq
+    networks:
+      - synapseai-network
+
+  quiz-service:
+    build:
+      context: .
+      dockerfile: services/quiz/Dockerfile
+    container_name: quiz-service
+    ports:
+      - "8005:8005"
+      - "9005:9005"
+    environment:
+      DB_HOST: postgres-quiz
+      DB_PORT: 5432
+      DB_USER: synapseai
+      DB_PASSWORD: synapseai123
+      DB_NAME: quiz_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      SERVER_PORT: 8005
+      GRPC_PORT: 9005
+      SERVICE_NAME: quiz-service
+      ENVIRONMENT: development
+    depends_on:
+      - postgres-quiz
+      - rabbitmq
+    networks:
+      - synapseai-network
+
+  progress-service:
+    build:
+      context: .
+      dockerfile: services/progress/Dockerfile
+    container_name: progress-service
+    ports:
+      - "9006:9006"
+    environment:
+      DB_HOST: postgres-progress
+      DB_PORT: 5432
+      DB_USER: synapseai
+      DB_PASSWORD: synapseai123
+      DB_NAME: progress_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      GRPC_PORT: 9006
+      SERVICE_NAME: progress-service
+      ENVIRONMENT: development
+    depends_on:
+      - postgres-progress
+      - rabbitmq
+    networks:
+      - synapseai-network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification/Dockerfile
+    container_name: notification-service
+    ports:
+      - "8007:8007"
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      SERVICE_NAME: notification-service
+      ENVIRONMENT: development
+    depends_on:
+      - rabbitmq
+    networks:
+      - synapseai-network
+
+networks:
+  synapseai-network:
+    driver: bridge
+
+volumes:
+  postgres-auth-data:
+  postgres-user-data:
+  postgres-content-data:
+  postgres-quiz-data:
+  postgres-progress-data:
+  redis-data:
+  rabbitmq-data:
+  content-uploads:
