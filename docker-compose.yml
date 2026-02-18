@@ -44,10 +44,16 @@ services:
       POSTGRES_USER: synapseai
       POSTGRES_PASSWORD: synapseai123
       POSTGRES_DB: user_db
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres-user-data:/var/lib/postgresql/data
     networks:
       - synapseai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapseai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres-content:
     image: postgres:15-alpine
@@ -56,10 +62,16 @@ services:
       POSTGRES_USER: synapseai
       POSTGRES_PASSWORD: synapseai123
       POSTGRES_DB: content_db
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres-content-data:/var/lib/postgresql/data
     networks:
       - synapseai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapseai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres-quiz:
     image: postgres:15-alpine
@@ -68,10 +80,16 @@ services:
       POSTGRES_USER: synapseai
       POSTGRES_PASSWORD: synapseai123
       POSTGRES_DB: quiz_db
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres-quiz-data:/var/lib/postgresql/data
     networks:
       - synapseai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapseai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres-progress:
     image: postgres:15-alpine
@@ -80,10 +98,16 @@ services:
       POSTGRES_USER: synapseai
       POSTGRES_PASSWORD: synapseai123
       POSTGRES_DB: progress_db
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres-progress-data:/var/lib/postgresql/data
     networks:
       - synapseai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapseai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Redis
   redis:
@@ -174,7 +198,8 @@ services:
       SERVICE_NAME: user-service
       ENVIRONMENT: development
     depends_on:
-      - postgres-user
+      postgres-user:
+        condition: service_healthy
     networks:
       - synapseai-network
 
@@ -195,11 +220,15 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       SERVER_PORT: 8003
       GRPC_PORT: 9003
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_EXPIRY: 24h
       SERVICE_NAME: content-service
       ENVIRONMENT: development
     depends_on:
-      - postgres-content
-      - rabbitmq
+      postgres-content:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     volumes:
       - content-uploads:/root/uploads
     networks:
@@ -243,8 +272,10 @@ services:
       SERVICE_NAME: quiz-service
       ENVIRONMENT: development
     depends_on:
-      - postgres-quiz
-      - rabbitmq
+      postgres-quiz:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - synapseai-network
 
@@ -266,8 +297,10 @@ services:
       SERVICE_NAME: progress-service
       ENVIRONMENT: development
     depends_on:
-      - postgres-progress
-      - rabbitmq
+      postgres-progress:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - synapseai-network
 
