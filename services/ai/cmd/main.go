@@ -24,7 +24,7 @@ type aiServer struct {
 func (s *aiServer) GenerateSummary(ctx context.Context, req *pb.GenerateSummaryRequest) (*pb.GenerateSummaryResponse, error) {
 	// Mock OpenAI API call - In production, use actual OpenAI SDK
 	summary := fmt.Sprintf("Summary of content: %s (Mock implementation - integrate OpenAI SDK for production)", req.ContentText[:min(100, len(req.ContentText))])
-	
+
 	return &pb.GenerateSummaryResponse{
 		Summary:   summary,
 		WordCount: 50,
@@ -34,7 +34,7 @@ func (s *aiServer) GenerateSummary(ctx context.Context, req *pb.GenerateSummaryR
 func (s *aiServer) GenerateQuiz(ctx context.Context, req *pb.GenerateQuizRequest) (*pb.GenerateQuizResponse, error) {
 	// Mock quiz generation - In production implement OpenAI API
 	quizID := fmt.Sprintf("quiz_%d", time.Now().Unix())
-	
+
 	questions := []*pb.QuizQuestion{
 		{
 			Question:      "What is the main topic of this content?",

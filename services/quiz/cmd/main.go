@@ -31,7 +31,7 @@ type quizServer struct {
 func (s *quizServer) GetQuiz(ctx context.Context, req *pb.GetQuizRequest) (*pb.GetQuizResponse, error) {
 	var quiz pb.GetQuizResponse
 	query := `SELECT quiz_id, content_id, title, difficulty, created_at FROM quizzes WHERE quiz_id = $1`
-	
+
 	err := s.db.QueryRow(query, req.QuizId).Scan(&quiz.QuizId, &quiz.ContentId, &quiz.Title, &quiz.Difficulty, &quiz.CreatedAt)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (s *quizServer) GetQuiz(ctx context.Context, req *pb.GetQuizRequest) (*pb.G
 
 func (s *quizServer) ListQuizzes(ctx context.Context, req *pb.ListQuizzesRequest) (*pb.ListQuizzesResponse, error) {
 	query := `SELECT quiz_id, title, difficulty, created_at FROM quizzes WHERE content_id = $1 ORDER BY created_at DESC LIMIT $2`
-	
+
 	rows, err := s.db.Query(query, req.ContentId, req.Limit)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (s *quizServer) ListQuizzes(ctx context.Context, req *pb.ListQuizzesRequest
 
 func (s *quizServer) SubmitAttempt(ctx context.Context, req *pb.SubmitAttemptRequest) (*pb.SubmitAttemptResponse, error) {
 	attemptID := uuid.New().String()
-	
+
 	// Get quiz questions to evaluate
 	questionsQuery := `SELECT question_id, correct_option, explanation FROM questions WHERE quiz_id = $1`
 	rows, err := s.db.Query(questionsQuery, req.QuizId)
@@ -98,7 +98,7 @@ func (s *quizServer) SubmitAttempt(ctx context.Context, req *pb.SubmitAttemptReq
 
 	correctAnswers := make(map[string]int32)
 	explanations := make(map[string]string)
-	
+
 	for rows.Next() {
 		var qID string
 		var correctOpt int32
@@ -170,7 +170,7 @@ func (s *quizServer) SubmitAttempt(ctx context.Context, req *pb.SubmitAttemptReq
 
 func (s *quizServer) GetAttemptHistory(ctx context.Context, req *pb.GetAttemptHistoryRequest) (*pb.GetAttemptHistoryResponse, error) {
 	query := `SELECT attempt_id, quiz_id, score, percentage, passed, attempted_at FROM attempts WHERE user_id = $1 AND quiz_id = $2 ORDER BY attempted_at DESC LIMIT $3`
-	
+
 	rows, err := s.db.Query(query, req.UserId, req.QuizId, req.Limit)
 	if err != nil {
 		return nil, err
@@ -200,7 +200,7 @@ func (s *quizServer) GetQuizStats(ctx context.Context, req *pb.GetQuizStatsReque
 			COUNT(DISTINCT user_id) as unique_users
 		FROM attempts WHERE quiz_id = $1
 	`
-	
+
 	err := s.db.QueryRow(query, req.QuizId).Scan(&stats.TotalAttempts, &stats.AverageScore, &stats.PassRate, &stats.UniqueUsers)
 	if err != nil {
 		return &pb.GetQuizStatsResponse{}, nil
@@ -266,10 +266,10 @@ func subscribeToEvents(rmq *rabbitmq.Client, server *quizServer) {
 		// Insert questions
 		questionQuery := `INSERT INTO questions (question_id, quiz_id, question_text, options, correct_option, explanation) 
 		                  VALUES ($1, $2, $3, $4, $5, $6)`
-		
+
 		for i, q := range event.Questions {
 			questionID := fmt.Sprintf("%s_q%d", event.QuizID, i+1)
-			
+
 			// Convert options to JSON
 			optionsJSON, err := json.Marshal(q.Options)
 			if err != nil {
@@ -360,7 +360,7 @@ func main() {
 		query := `SELECT quiz_id, title, difficulty, created_at, 
 		          (SELECT COUNT(*) FROM questions WHERE questions.quiz_id = quizzes.quiz_id) as question_count
 		          FROM quizzes WHERE content_id = $1 ORDER BY created_at DESC LIMIT 10`
-		
+
 		rows, err := server.db.Query(query, contentID)
 		if err != nil {
 			logger.Error("Failed to query quizzes", zap.Error(err))
@@ -422,7 +422,7 @@ func main() {
 		var quiz QuizResponse
 		var createdAt time.Time
 		query := `SELECT quiz_id, content_id, title, difficulty, created_at FROM quizzes WHERE quiz_id = $1`
-		
+
 		err := server.db.QueryRow(query, quizID).Scan(&quiz.QuizID, &quiz.ContentID, &quiz.Title, &quiz.Difficulty, &createdAt)
 		if err != nil {
 			logger.Error("Failed to query quiz", zap.Error(err))
@@ -449,13 +449,13 @@ func main() {
 				logger.Error("Failed to scan question", zap.Error(err))
 				continue
 			}
-			
+
 			// Parse options JSON
 			if err := json.Unmarshal(optionsJSON, &q.Options); err != nil {
 				logger.Error("Failed to unmarshal options", zap.Error(err))
 				q.Options = []string{"Option A", "Option B", "Option C", "Option D"}
 			}
-			
+
 			quiz.Questions = append(quiz.Questions, q)
 		}
 

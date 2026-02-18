@@ -25,15 +25,15 @@ type server struct {
 func (s *server) GetProfile(ctx context.Context, req *pb.GetProfileRequest) (*pb.GetProfileResponse, error) {
 	var profile pb.GetProfileResponse
 	query := `SELECT user_id, name, email, avatar_url, bio, created_at, updated_at FROM profiles WHERE user_id = $1`
-	
+
 	err := s.db.QueryRow(query, req.UserId).Scan(
-		&profile.UserId, &profile.Name, &profile.Email, 
+		&profile.UserId, &profile.Name, &profile.Email,
 		&profile.AvatarUrl, &profile.Bio, &profile.CreatedAt, &profile.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &profile, nil
 }
 
@@ -44,34 +44,34 @@ func (s *server) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest
 		ON CONFLICT (user_id) 
 		DO UPDATE SET name = $2, bio = $3, avatar_url = $4, updated_at = NOW()
 	`
-	
+
 	_, err := s.db.Exec(query, req.UserId, req.Name, req.Bio, req.AvatarUrl)
 	if err != nil {
 		return &pb.UpdateProfileResponse{Success: false, Message: err.Error()}, nil
 	}
-	
+
 	return &pb.UpdateProfileResponse{Success: true, Message: "Profile updated successfully"}, nil
 }
 
 func (s *server) GetPreferences(ctx context.Context, req *pb.GetPreferencesRequest) (*pb.GetPreferencesResponse, error) {
 	var prefs pb.GetPreferencesResponse
 	query := `SELECT user_id, language, difficulty_level, email_notifications, push_notifications FROM preferences WHERE user_id = $1`
-	
+
 	err := s.db.QueryRow(query, req.UserId).Scan(
-		&prefs.UserId, &prefs.Language, &prefs.DifficultyLevel, 
+		&prefs.UserId, &prefs.Language, &prefs.DifficultyLevel,
 		&prefs.EmailNotifications, &prefs.PushNotifications,
 	)
 	if err != nil {
 		// Return defaults if not found
 		return &pb.GetPreferencesResponse{
-			UserId: req.UserId,
-			Language: "en",
-			DifficultyLevel: "intermediate",
+			UserId:             req.UserId,
+			Language:           "en",
+			DifficultyLevel:    "intermediate",
 			EmailNotifications: true,
-			PushNotifications: false,
+			PushNotifications:  false,
 		}, nil
 	}
-	
+
 	return &prefs, nil
 }
 
@@ -82,12 +82,12 @@ func (s *server) UpdatePreferences(ctx context.Context, req *pb.UpdatePreference
 		ON CONFLICT (user_id)
 		DO UPDATE SET language = $2, difficulty_level = $3, email_notifications = $4, push_notifications = $5
 	`
-	
+
 	_, err := s.db.Exec(query, req.UserId, req.Language, req.DifficultyLevel, req.EmailNotifications, req.PushNotifications)
 	if err != nil {
 		return &pb.UpdatePreferencesResponse{Success: false, Message: err.Error()}, nil
 	}
-	
+
 	return &pb.UpdatePreferencesResponse{Success: true, Message: "Preferences updated"}, nil
 }
 
@@ -98,7 +98,7 @@ func (s *server) GetLearningGoals(ctx context.Context, req *pb.GetLearningGoalsR
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var goals []*pb.LearningGoal
 	for rows.Next() {
 		var goal pb.LearningGoal
@@ -108,7 +108,7 @@ func (s *server) GetLearningGoals(ctx context.Context, req *pb.GetLearningGoalsR
 		}
 		goals = append(goals, &goal)
 	}
-	
+
 	return &pb.GetLearningGoalsResponse{Goals: goals}, nil
 }
 
@@ -118,7 +118,7 @@ func (s *server) UpdateLearningGoals(ctx context.Context, req *pb.UpdateLearning
 	if err != nil {
 		return &pb.UpdateLearningGoalsResponse{Success: false, Message: err.Error()}, nil
 	}
-	
+
 	for _, goal := range req.Goals {
 		query := `INSERT INTO learning_goals (goal_id, user_id, title, description, target_date, progress, status) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 		_, err := s.db.Exec(query, goal.GoalId, req.UserId, goal.Title, goal.Description, goal.TargetDate, goal.Progress, goal.Status)
@@ -126,7 +126,7 @@ func (s *server) UpdateLearningGoals(ctx context.Context, req *pb.UpdateLearning
 			continue
 		}
 	}
-	
+
 	return &pb.UpdateLearningGoalsResponse{Success: true, Message: "Goals updated"}, nil
 }
 
@@ -198,7 +198,7 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterUserServiceServer(grpcServer, &server{db: db})
-	
+
 	// Register health check
 	healthServer := health.NewServer()
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
