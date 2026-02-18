@@ -118,6 +118,9 @@ export default function DashboardPage() {
             <Link href="/upload" className="btn-primary">
               📤 Upload Content
             </Link>
+            <Link href="/quizzes" className="btn-secondary">
+              🎯 View Quizzes
+            </Link>
             <Link href="/dashboard" className="btn-secondary">
               📊 View Progress
             </Link>

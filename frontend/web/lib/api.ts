@@ -107,5 +107,3 @@ export const quizAPI = {
   stats: (quizId: string) =>
     quizApi.get(`/${quizId}/stats`),
 }
-
-export default authApi
