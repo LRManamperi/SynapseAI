@@ -9,10 +9,12 @@ import (
 	"net"
 	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/synapseai/platform/pkg/config"
 	"github.com/synapseai/platform/pkg/logger"
 	"github.com/synapseai/platform/pkg/rabbitmq"
 	pb "github.com/synapseai/platform/proto/progress"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -226,9 +228,9 @@ func initDB(db *sql.DB) error {
 			xp_amount INT NOT NULL,
 			activity_type VARCHAR(50),
 			reference_id VARCHAR(36),
-			created_at TIMESTAMP NOT NULL,
-			INDEX idx_user_id (user_id)
+			created_at TIMESTAMP NOT NULL
 		);
+		CREATE INDEX IF NOT EXISTS idx_user_id ON xp_logs(user_id);
 
 		CREATE TABLE IF NOT EXISTS streaks (
 			user_id VARCHAR(36) PRIMARY KEY,
@@ -255,12 +257,17 @@ func main() {
 
 	db, err := sql.Open("postgres", cfg.DatabaseDSN())
 	if err != nil {
-		logger.Fatal("Failed to connect to database")
+		logger.Fatal("Failed to connect to database", zap.Error(err), zap.String("dsn", cfg.DatabaseDSN()))
 	}
 	defer db.Close()
 
+	// Test database connection
+	if err := db.Ping(); err != nil {
+		logger.Fatal("Failed to ping database", zap.Error(err), zap.String("dsn", cfg.DatabaseDSN()))
+	}
+
 	if err := initDB(db); err != nil {
-		logger.Fatal("Failed to initialize database")
+		logger.Fatal("Failed to initialize database", zap.Error(err))
 	}
 
 	rmqClient, err := rabbitmq.NewClient(cfg.RabbitMQURL)

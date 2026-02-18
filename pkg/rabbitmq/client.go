@@ -171,12 +171,21 @@ type ContentUploadedEvent struct {
 }
 
 type QuizGeneratedEvent struct {
-	QuizID       string    `json:"quiz_id"`
-	ContentID    string    `json:"content_id"`
-	UserID       string    `json:"user_id"`
-	Title        string    `json:"title"`
-	NumQuestions int       `json:"num_questions"`
-	Timestamp    time.Time `json:"timestamp"`
+	QuizID       string         `json:"quiz_id"`
+	ContentID    string         `json:"content_id"`
+	UserID       string         `json:"user_id"`
+	Title        string         `json:"title"`
+	Difficulty   string         `json:"difficulty"`
+	NumQuestions int            `json:"num_questions"`
+	Questions    []QuizQuestion `json:"questions"`
+	Timestamp    time.Time      `json:"timestamp"`
+}
+
+type QuizQuestion struct {
+	Question      string   `json:"question"`
+	Options       []string `json:"options"`
+	CorrectOption int32    `json:"correct_option"`
+	Explanation   string   `json:"explanation"`
 }
 
 type QuizCompletedEvent struct {

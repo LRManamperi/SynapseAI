@@ -1,6 +1,6 @@
 module github.com/synapseai/platform/services/quiz
 
-go 1.21
+go 1.24.0
 
 require (
 	github.com/google/uuid v1.6.0
@@ -11,13 +11,12 @@ require (
 )
 
 require (
-	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/rabbitmq/amqp091-go v1.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/net v0.20.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/net v0.22.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect

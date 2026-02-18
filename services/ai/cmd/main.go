@@ -50,13 +50,26 @@ func (s *aiServer) GenerateQuiz(ctx context.Context, req *pb.GenerateQuizRequest
 		},
 	}
 
+	// Convert questions for event
+	var eventQuestions []rabbitmq.QuizQuestion
+	for _, q := range questions {
+		eventQuestions = append(eventQuestions, rabbitmq.QuizQuestion{
+			Question:      q.Question,
+			Options:       q.Options,
+			CorrectOption: q.CorrectOption,
+			Explanation:   q.Explanation,
+		})
+	}
+
 	// Publish QuizGenerated event
 	event := rabbitmq.QuizGeneratedEvent{
 		QuizID:       quizID,
 		ContentID:    req.ContentId,
 		UserID:       req.UserId,
 		Title:        "Generated Quiz",
+		Difficulty:   req.Difficulty,
 		NumQuestions: len(questions),
+		Questions:    eventQuestions,
 		Timestamp:    time.Now(),
 	}
 	s.rmq.Publish(rabbitmq.QuizGeneratedKey, event)

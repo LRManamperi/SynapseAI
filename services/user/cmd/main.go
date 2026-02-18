@@ -7,9 +7,11 @@ import (
 	"log"
 	"net"
 
+	_ "github.com/lib/pq"
 	"github.com/synapseai/platform/pkg/config"
 	"github.com/synapseai/platform/pkg/logger"
 	pb "github.com/synapseai/platform/proto/user"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -176,12 +178,17 @@ func main() {
 
 	db, err := sql.Open("postgres", cfg.DatabaseDSN())
 	if err != nil {
-		logger.Fatal("Failed to connect to database")
+		logger.Fatal("Failed to connect to database", zap.Error(err), zap.String("dsn", cfg.DatabaseDSN()))
 	}
 	defer db.Close()
 
+	// Test database connection
+	if err := db.Ping(); err != nil {
+		logger.Fatal("Failed to ping database", zap.Error(err), zap.String("dsn", cfg.DatabaseDSN()))
+	}
+
 	if err := initDB(db); err != nil {
-		logger.Fatal("Failed to initialize database")
+		logger.Fatal("Failed to initialize database", zap.Error(err))
 	}
 
 	lis, err := net.Listen("tcp", ":"+cfg.GRPCPort)

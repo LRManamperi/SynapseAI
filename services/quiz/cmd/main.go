@@ -12,11 +12,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
 	"github.com/rs/cors"
 	"github.com/synapseai/platform/pkg/config"
 	"github.com/synapseai/platform/pkg/logger"
 	"github.com/synapseai/platform/pkg/rabbitmq"
 	pb "github.com/synapseai/platform/proto/quiz"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -214,9 +216,9 @@ func initDB(db *sql.DB) error {
 			content_id VARCHAR(36) NOT NULL,
 			title VARCHAR(255) NOT NULL,
 			difficulty VARCHAR(50),
-			created_at TIMESTAMP NOT NULL,
-			INDEX idx_content_id (content_id)
+			created_at TIMESTAMP NOT NULL
 		);
+		CREATE INDEX IF NOT EXISTS idx_content_id ON quizzes(content_id);
 
 		CREATE TABLE IF NOT EXISTS questions (
 			question_id VARCHAR(36) PRIMARY KEY,
@@ -235,12 +237,56 @@ func initDB(db *sql.DB) error {
 			score INT NOT NULL,
 			percentage FLOAT NOT NULL,
 			passed BOOLEAN NOT NULL,
-			attempted_at TIMESTAMP NOT NULL,
-			INDEX idx_user_quiz (user_id, quiz_id)
+			attempted_at TIMESTAMP NOT NULL
 		);
+		CREATE INDEX IF NOT EXISTS idx_user_quiz ON attempts(user_id, quiz_id);
 	`
 	_, err := db.Exec(schema)
 	return err
+}
+
+func subscribeToEvents(rmq *rabbitmq.Client, server *quizServer) {
+	// Subscribe to QuizGenerated events
+	rmq.Subscribe("quiz_generated_queue", rabbitmq.QuizGeneratedKey, func(body []byte) error {
+		var event rabbitmq.QuizGeneratedEvent
+		if err := json.Unmarshal(body, &event); err != nil {
+			return fmt.Errorf("failed to unmarshal event: %w", err)
+		}
+
+		logger.Info(fmt.Sprintf("Processing quiz generation: %s for content: %s", event.QuizID, event.ContentID))
+
+		// Insert quiz record
+		quizQuery := `INSERT INTO quizzes (quiz_id, content_id, title, difficulty, created_at) 
+		              VALUES ($1, $2, $3, $4, $5)`
+		_, err := server.db.Exec(quizQuery, event.QuizID, event.ContentID, event.Title, event.Difficulty, event.Timestamp)
+		if err != nil {
+			return fmt.Errorf("failed to insert quiz: %w", err)
+		}
+
+		// Insert questions
+		questionQuery := `INSERT INTO questions (question_id, quiz_id, question_text, options, correct_option, explanation) 
+		                  VALUES ($1, $2, $3, $4, $5, $6)`
+		
+		for i, q := range event.Questions {
+			questionID := fmt.Sprintf("%s_q%d", event.QuizID, i+1)
+			
+			// Convert options to JSON
+			optionsJSON, err := json.Marshal(q.Options)
+			if err != nil {
+				logger.Error("Failed to marshal options", zap.Error(err))
+				continue
+			}
+
+			_, err = server.db.Exec(questionQuery, questionID, event.QuizID, q.Question, optionsJSON, q.CorrectOption, q.Explanation)
+			if err != nil {
+				logger.Error("Failed to insert question", zap.Error(err), zap.String("questionID", questionID))
+				continue
+			}
+		}
+
+		logger.Info(fmt.Sprintf("Successfully saved quiz: %s with %d questions", event.QuizID, len(event.Questions)))
+		return nil
+	})
 }
 
 func main() {
@@ -257,12 +303,17 @@ func main() {
 
 	db, err := sql.Open("postgres", cfg.DatabaseDSN())
 	if err != nil {
-		logger.Fatal("Failed to connect to database")
+		logger.Fatal("Failed to connect to database", zap.Error(err), zap.String("dsn", cfg.DatabaseDSN()))
 	}
 	defer db.Close()
 
+	// Test database connection
+	if err := db.Ping(); err != nil {
+		logger.Fatal("Failed to ping database", zap.Error(err), zap.String("dsn", cfg.DatabaseDSN()))
+	}
+
 	if err := initDB(db); err != nil {
-		logger.Fatal("Failed to initialize database")
+		logger.Fatal("Failed to initialize database", zap.Error(err))
 	}
 
 	rmqClient, err := rabbitmq.NewClient(cfg.RabbitMQURL)
@@ -272,6 +323,9 @@ func main() {
 	defer rmqClient.Close()
 
 	server := &quizServer{db: db, rmq: rmqClient}
+
+	// Subscribe to events
+	subscribeToEvents(rmqClient, server)
 
 	// Start gRPC server
 	go func() {
@@ -293,6 +347,120 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}).Methods("GET")
+
+	// List quizzes for a content
+	r.HandleFunc("/list", func(w http.ResponseWriter, r *http.Request) {
+		contentID := r.URL.Query().Get("content_id")
+		if contentID == "" {
+			http.Error(w, "content_id is required", http.StatusBadRequest)
+			return
+		}
+
+		query := `SELECT quiz_id, title, difficulty, created_at, 
+		          (SELECT COUNT(*) FROM questions WHERE questions.quiz_id = quizzes.quiz_id) as question_count
+		          FROM quizzes WHERE content_id = $1 ORDER BY created_at DESC LIMIT 10`
+		
+		rows, err := server.db.Query(query, contentID)
+		if err != nil {
+			logger.Error("Failed to query quizzes", zap.Error(err))
+			http.Error(w, "Failed to fetch quizzes", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		type QuizItem struct {
+			QuizID        string `json:"quiz_id"`
+			Title         string `json:"title"`
+			Difficulty    string `json:"difficulty"`
+			CreatedAt     string `json:"created_at"`
+			QuestionCount int    `json:"question_count"`
+		}
+
+		var items []QuizItem
+		for rows.Next() {
+			var item QuizItem
+			var createdAt time.Time
+			err := rows.Scan(&item.QuizID, &item.Title, &item.Difficulty, &createdAt, &item.QuestionCount)
+			if err != nil {
+				logger.Error("Failed to scan quiz", zap.Error(err))
+				continue
+			}
+			item.CreatedAt = createdAt.Format(time.RFC3339)
+			items = append(items, item)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"items": items,
+			"total": len(items),
+		})
+	}).Methods("GET")
+
+	// Get quiz details
+	r.HandleFunc("/{quiz_id}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		quizID := vars["quiz_id"]
+
+		type Question struct {
+			QuestionID    string   `json:"question_id"`
+			QuestionText  string   `json:"question_text"`
+			Options       []string `json:"options"`
+			CorrectOption int32    `json:"correct_option"`
+			Explanation   string   `json:"explanation"`
+		}
+
+		type QuizResponse struct {
+			QuizID     string     `json:"quiz_id"`
+			ContentID  string     `json:"content_id"`
+			Title      string     `json:"title"`
+			Difficulty string     `json:"difficulty"`
+			CreatedAt  string     `json:"created_at"`
+			Questions  []Question `json:"questions"`
+		}
+
+		var quiz QuizResponse
+		var createdAt time.Time
+		query := `SELECT quiz_id, content_id, title, difficulty, created_at FROM quizzes WHERE quiz_id = $1`
+		
+		err := server.db.QueryRow(query, quizID).Scan(&quiz.QuizID, &quiz.ContentID, &quiz.Title, &quiz.Difficulty, &createdAt)
+		if err != nil {
+			logger.Error("Failed to query quiz", zap.Error(err))
+			http.Error(w, "Quiz not found", http.StatusNotFound)
+			return
+		}
+		quiz.CreatedAt = createdAt.Format(time.RFC3339)
+
+		// Get questions
+		questionsQuery := `SELECT question_id, question_text, options, correct_option, explanation FROM questions WHERE quiz_id = $1`
+		rows, err := server.db.Query(questionsQuery, quizID)
+		if err != nil {
+			logger.Error("Failed to query questions", zap.Error(err))
+			http.Error(w, "Failed to fetch questions", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var q Question
+			var optionsJSON []byte
+			err := rows.Scan(&q.QuestionID, &q.QuestionText, &optionsJSON, &q.CorrectOption, &q.Explanation)
+			if err != nil {
+				logger.Error("Failed to scan question", zap.Error(err))
+				continue
+			}
+			
+			// Parse options JSON
+			if err := json.Unmarshal(optionsJSON, &q.Options); err != nil {
+				logger.Error("Failed to unmarshal options", zap.Error(err))
+				q.Options = []string{"Option A", "Option B", "Option C", "Option D"}
+			}
+			
+			quiz.Questions = append(quiz.Questions, q)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(quiz)
 	}).Methods("GET")
 
 	c := cors.Default()
