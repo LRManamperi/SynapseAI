@@ -34,7 +34,7 @@ export default function DashboardPage() {
   const loadContents = async () => {
     try {
       setError(null)
-      const response = await contentAPI.list(1, 10)
+      const response = await contentAPI.list()
       setContents(response.data.items || [])
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load contents'
