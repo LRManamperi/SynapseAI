@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package quiz;
+
+option go_package = "github.com/synapseai/platform/proto/quiz";
+
+service QuizService {
+  rpc GetQuiz(GetQuizRequest) returns (GetQuizResponse);
+  rpc ListQuizzes(ListQuizzesRequest) returns (ListQuizzesResponse);
+  rpc SubmitAttempt(SubmitAttemptRequest) returns (SubmitAttemptResponse);
+  rpc GetAttemptHistory(GetAttemptHistoryRequest) returns (GetAttemptHistoryResponse);
+  rpc GetQuizStats(GetQuizStatsRequest) returns (GetQuizStatsResponse);
+}
+
+message GetQuizRequest {
+  string quiz_id = 1;
+  string user_id = 2;
+}
+
+message GetQuizResponse {
+  string quiz_id = 1;
+  string content_id = 2;
+  string title = 3;
+  string difficulty = 4;
+  repeated Question questions = 5;
+  string created_at = 6;
+}
+
+message Question {
+  string question_id = 1;
+  string question_text = 2;
+  repeated string options = 3;
+  int32 correct_option = 4;
+  string explanation = 5;
+}
+
+message ListQuizzesRequest {
+  string user_id = 1;
+  string content_id = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+message ListQuizzesResponse {
+  repeated QuizItem items = 1;
+  int32 total = 2;
+}
+
+message QuizItem {
+  string quiz_id = 1;
+  string title = 2;
+  string difficulty = 3;
+  int32 question_count = 4;
+  string created_at = 5;
+}
+
+message SubmitAttemptRequest {
+  string quiz_id = 1;
+  string user_id = 2;
+  repeated Answer answers = 3;
+}
+
+message Answer {
+  string question_id = 1;
+  int32 selected_option = 2;
+}
+
+message SubmitAttemptResponse {
+  string attempt_id = 1;
+  int32 score = 2;
+  int32 total_questions = 3;
+  int32 correct_answers = 4;
+  double percentage = 5;
+  bool passed = 6;
+  repeated QuestionResult results = 7;
+}
+
+message QuestionResult {
+  string question_id = 1;
+  bool correct = 2;
+  int32 selected_option = 3;
+  int32 correct_option = 4;
+  string explanation = 5;
+}
+
+message GetAttemptHistoryRequest {
+  string user_id = 1;
+  string quiz_id = 2;
+  int32 limit = 3;
+}
+
+message GetAttemptHistoryResponse {
+  repeated AttemptSummary attempts = 1;
+}
+
+message AttemptSummary {
+  string attempt_id = 1;
+  string quiz_id = 2;
+  int32 score = 3;
+  double percentage = 4;
+  bool passed = 5;
+  string attempted_at = 6;
+}
+
+message GetQuizStatsRequest {
+  string quiz_id = 1;
+}
+
+message GetQuizStatsResponse {
+  int32 total_attempts = 1;
+  double average_score = 2;
+  double pass_rate = 3;
+  int32 unique_users = 4;
+}
