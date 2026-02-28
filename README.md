@@ -120,16 +120,63 @@ SynapseAI/
 └── README.md
 ```
 
-## Prerequisites
+## 🚀 Quick Start (From the Beginning)
 
-- Docker Desktop
-- Go 1.21+
-- Node.js 18+
-- Make
-- Protocol Buffers compiler (protoc)
-- protoc-gen-go and protoc-gen-go-grpc plugins
+### Prerequisites
 
-## Installation
+- **Docker Desktop** - Must be running
+- **Go 1.21+** - For backend development
+- **Node.js 18+** - For frontend
+- **Windows PowerShell** - For running scripts
+
+### Option 1: Complete Docker Setup (Recommended)
+
+**Start everything with one script:**
+
+```powershell
+# Start all infrastructure and microservices
+.\scripts\start-all.ps1
+
+# Then start the frontend in a separate terminal
+cd frontend\web
+npm install
+npm run dev
+```
+
+Access the application at **http://localhost:3000**
+
+### Option 2: Infrastructure Only (For Development)
+
+```powershell
+# Start only databases, Redis, and RabbitMQ
+.\scripts\start-infrastructure.ps1
+
+# Then run individual services manually
+cd services\auth\cmd
+go run main.go
+
+# In separate terminals, start other services as needed
+```
+
+### Option 3: Full Docker Compose
+
+```powershell
+# Start everything with Docker Compose
+docker-compose up --build -d
+
+# Start frontend
+cd frontend\web
+npm install
+npm run dev
+```
+
+### Stop Everything
+
+```powershell
+docker-compose down
+```
+
+## Detailed Installation
 
 ### 1. Install Go Dependencies
 
@@ -139,7 +186,7 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 go mod download
 ```
 
-### 2. Generate Proto Files
+### 2. Generate Proto Files (if needed)
 
 ```bash
 make proto
@@ -147,21 +194,17 @@ make proto
 .\scripts\compile-proto.ps1
 ```
 
-### 3. Build and Start Infrastructure
+### 3. Environment Configuration
 
-```bash
-docker-compose up --build -d
+A `.env` file has been created in the root directory with default local development settings. Modify as needed:
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=synapseai
+DB_PASSWORD=synapseai123
+# ... other settings
 ```
-
-### 4. Setup Frontend
-
-```bash
-cd frontend/web
-npm install
-npm run dev
-```
-
-Frontend will be available at: **http://localhost:3000**
 
 ## Service Endpoints
 
