@@ -4,6 +4,7 @@ const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost:8
 const CONTENT_API_URL = process.env.NEXT_PUBLIC_CONTENT_API_URL || 'http://localhost:8003'
 const QUIZ_API_URL = process.env.NEXT_PUBLIC_QUIZ_API_URL || 'http://localhost:8005'
 const PROGRESS_API_URL = process.env.NEXT_PUBLIC_PROGRESS_API_URL || 'http://localhost:8006'
+const AI_API_URL = process.env.NEXT_PUBLIC_AI_API_URL || 'http://localhost:8004'
 
 // Auth API instance
 const authApi = axios.create({
@@ -37,6 +38,14 @@ const progressApi = axios.create({
   },
 })
 
+// AI API instance
+const aiApi = axios.create({
+  baseURL: AI_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
 // Add auth token to all instances
 const addAuthToken = (config: any) => {
   if (typeof window !== 'undefined') {
@@ -52,6 +61,7 @@ authApi.interceptors.request.use(addAuthToken, (error) => Promise.reject(error))
 contentApi.interceptors.request.use(addAuthToken, (error) => Promise.reject(error))
 quizApi.interceptors.request.use(addAuthToken, (error) => Promise.reject(error))
 progressApi.interceptors.request.use(addAuthToken, (error) => Promise.reject(error))
+aiApi.interceptors.request.use(addAuthToken, (error) => Promise.reject(error))
 
 // Handle 401 errors for all instances
 const handleAuthError = (error: any) => {
@@ -67,6 +77,7 @@ authApi.interceptors.response.use((response) => response, handleAuthError)
 contentApi.interceptors.response.use((response) => response, handleAuthError)
 quizApi.interceptors.response.use((response) => response, handleAuthError)
 progressApi.interceptors.response.use((response) => response, handleAuthError)
+aiApi.interceptors.response.use((response) => response, handleAuthError)
 
 // Auth API
 export const authAPI = {
@@ -132,4 +143,13 @@ export const progressAPI = {
   
   getLeaderboard: () =>
     progressApi.get('/leaderboard'),
+}
+
+// AI API
+export const aiAPI = {
+  health: () =>
+    aiApi.get('/health'),
+
+  retrigger: (data: { content_id: string; user_id?: string; file_path?: string; title?: string }) =>
+    aiApi.post('/retrigger', data),
 }
