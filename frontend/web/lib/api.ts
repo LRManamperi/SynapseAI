@@ -131,6 +131,9 @@ export const quizAPI = {
   
   stats: (quizId: string) =>
     quizApi.get(`/${quizId}/stats`),
+
+  userStats: (userId: string) =>
+    quizApi.get(`/user-stats?user_id=${userId}`),
 }
 
 // Progress API
