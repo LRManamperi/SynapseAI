@@ -53,7 +53,7 @@ func (s *progressServer) GetUserProgress(ctx context.Context, req *pb.GetUserPro
 	return &progress, nil
 }
 
-func (s *progressServer) createUserProgress(userID string) (*pb.GetUserProgressRequest, error) {
+func (s *progressServer) createUserProgress(userID string) (*pb.GetUserProgressResponse, error) {
 	query := `
 		INSERT INTO user_progress (user_id, total_xp, level, current_streak, longest_streak, quizzes_completed, content_uploaded, last_activity)
 		VALUES ($1, 0, 1, 0, 0, 0, 0, NOW())
@@ -379,7 +379,7 @@ func main() {
 	}).Methods("GET")
 
 	// Protected routes
-	protected := r.PathPrefix("/").Subrouter()
+	protected := r.NewRoute().Subrouter()
 	protected.Use(middleware.AuthMiddleware(jwtManager))
 	protected.HandleFunc("/progress", httpHandler.getProgress).Methods("GET")
 	protected.HandleFunc("/streak", httpHandler.getStreak).Methods("GET")

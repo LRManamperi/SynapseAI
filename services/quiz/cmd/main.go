@@ -463,7 +463,139 @@ func main() {
 		json.NewEncoder(w).Encode(quiz)
 	}).Methods("GET")
 
-	c := cors.Default()
+	// Submit quiz answers
+	r.HandleFunc("/{quiz_id}/submit", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		quizID := vars["quiz_id"]
+
+		type AnswerInput struct {
+			QuestionID     string `json:"question_id"`
+			SelectedOption int32  `json:"selected_option"`
+		}
+		type SubmitRequest struct {
+			Answers []AnswerInput `json:"answers"`
+		}
+		type QuestionResult struct {
+			QuestionID    string `json:"question_id"`
+			Correct       bool   `json:"correct"`
+			CorrectOption int32  `json:"correct_option"`
+			Explanation   string `json:"explanation"`
+		}
+		type SubmitResponse struct {
+			Score   int              `json:"score"`
+			Total   int              `json:"total"`
+			Correct int              `json:"correct"`
+			Results []QuestionResult `json:"results"`
+		}
+
+		var req SubmitRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// Fetch correct answers from DB
+		rows, err := server.db.Query(
+			`SELECT question_id, correct_option, explanation FROM questions WHERE quiz_id = $1`,
+			quizID,
+		)
+		if err != nil {
+			http.Error(w, "failed to fetch questions", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		type dbQuestion struct {
+			ID            string
+			CorrectOption int32
+			Explanation   string
+		}
+		dbQuestions := map[string]dbQuestion{}
+		for rows.Next() {
+			var q dbQuestion
+			rows.Scan(&q.ID, &q.CorrectOption, &q.Explanation)
+			dbQuestions[q.ID] = q
+		}
+
+		// Build answer map for quick lookup
+		answerMap := map[string]int32{}
+		for _, a := range req.Answers {
+			answerMap[a.QuestionID] = a.SelectedOption
+		}
+
+		// Score
+		var results []QuestionResult
+		correct := 0
+		for _, dbQ := range dbQuestions {
+			selected, answered := answerMap[dbQ.ID]
+			isCorrect := answered && selected == dbQ.CorrectOption
+			if isCorrect {
+				correct++
+			}
+			results = append(results, QuestionResult{
+				QuestionID:    dbQ.ID,
+				Correct:       isCorrect,
+				CorrectOption: dbQ.CorrectOption,
+				Explanation:   dbQ.Explanation,
+			})
+		}
+
+		total := len(dbQuestions)
+		score := 0
+		if total > 0 {
+			score = (correct * 100) / total
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(SubmitResponse{
+			Score:   score,
+			Total:   total,
+			Correct: correct,
+			Results: results,
+		})
+	}).Methods("POST")
+
+	// User stats across all their attempts
+	r.HandleFunc("/user-stats", func(w http.ResponseWriter, r *http.Request) {
+		userID := r.URL.Query().Get("user_id")
+		if userID == "" {
+			http.Error(w, "user_id is required", http.StatusBadRequest)
+			return
+		}
+
+		type UserStats struct {
+			TotalAttempts int     `json:"total_attempts"`
+			Passed        int     `json:"passed"`
+			AvgScore      float64 `json:"avg_score"`
+			XP            int     `json:"xp"`
+			DaysActive    int     `json:"days_active"`
+			UniqueQuizzes int     `json:"unique_quizzes"`
+		}
+
+		var stats UserStats
+		err := server.db.QueryRow(`
+			SELECT
+				COUNT(*) AS total_attempts,
+				COALESCE(SUM(CASE WHEN passed THEN 1 ELSE 0 END), 0) AS passed,
+				COALESCE(AVG(score), 0) AS avg_score,
+				COUNT(DISTINCT DATE(attempted_at)) AS days_active,
+				COUNT(DISTINCT quiz_id) AS unique_quizzes
+			FROM attempts WHERE user_id = $1`, userID,
+		).Scan(&stats.TotalAttempts, &stats.Passed, &stats.AvgScore, &stats.DaysActive, &stats.UniqueQuizzes)
+		if err != nil {
+			stats = UserStats{}
+		}
+		stats.XP = stats.TotalAttempts*10 + stats.Passed*50
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(stats)
+	}).Methods("GET")
+
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Content-Type", "Authorization"},
+	})
 	logger.Info(fmt.Sprintf("Quiz Service HTTP listening on port %s", cfg.ServerPort))
 	if err := http.ListenAndServe(":"+cfg.ServerPort, c.Handler(r)); err != nil {
 		logger.Fatal("Failed to serve HTTP")

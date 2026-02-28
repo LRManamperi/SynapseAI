@@ -347,7 +347,7 @@ func main() {
 	}).Methods("GET")
 
 	// Protected routes - require authentication
-	protected := r.PathPrefix("/").Subrouter()
+	protected := r.NewRoute().Subrouter()
 	protected.Use(middleware.AuthMiddleware(jwtManager))
 	protected.HandleFunc("/upload", handler.uploadContent).Methods("POST")
 	protected.HandleFunc("/list", handler.listContent).Methods("GET")
