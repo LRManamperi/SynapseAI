@@ -1,0 +1,537 @@
+{
+  "info": {
+    "name": "SynapseAI API Collection",
+    "_postman_id": "synapseai-collection-v1",
+    "description": "Complete API test collection for SynapseAI microservices.\n\n**Setup:**\n1. Set the `base_url` variable to `http://localhost` (via Nginx gateway on port 80)\n2. Run **Register** then **Login** — the login request auto-saves the JWT token\n3. All protected routes use the `{{auth_token}}` variable automatically\n\n**Direct service ports (bypass gateway):**\n- Auth:    http://localhost:8001\n- User:    http://localhost:8002\n- Content: http://localhost:8003\n- AI:      http://localhost:8004\n- Quiz:    http://localhost:8005\n- Notification: http://localhost:8007",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost",
+      "type": "string",
+      "description": "API Gateway base URL (Nginx on port 80)"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT Bearer token — auto-populated by the Login request"
+    },
+    {
+      "key": "content_id",
+      "value": "",
+      "type": "string",
+      "description": "Set after uploading content"
+    },
+    {
+      "key": "quiz_id",
+      "value": "",
+      "type": "string",
+      "description": "Set after listing/getting a quiz"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string",
+      "description": "Set after login (from decoded token or register response)"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "Gateway Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Nginx API Gateway liveness check."
+          }
+        },
+        {
+          "name": "Auth Service Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/auth/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "health"]
+            }
+          }
+        },
+        {
+          "name": "Content Service Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/content/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "health"]
+            }
+          }
+        },
+        {
+          "name": "Quiz Service Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/quiz/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", "health"]
+            }
+          }
+        },
+        {
+          "name": "AI Service Health (Direct)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8004/health",
+              "host": ["http://localhost"],
+              "port": "8004",
+              "path": ["health"]
+            },
+            "description": "AI service is not exposed through the gateway — call directly on port 8004."
+          }
+        },
+        {
+          "name": "Notification Service Health (Direct)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8007/health",
+              "host": ["http://localhost"],
+              "port": "8007",
+              "path": ["health"]
+            },
+            "description": "Notification service is not exposed through the gateway — call directly on port 8007."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"Test1234!\",\n  \"name\": \"Test User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Create a new user account."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.access_token) {",
+                  "    pm.collectionVariables.set('auth_token', jsonData.access_token);",
+                  "    console.log('✅ auth_token saved:', jsonData.access_token.substring(0, 40) + '...');",
+                  "}",
+                  "if (jsonData.user_id) {",
+                  "    pm.collectionVariables.set('user_id', jsonData.user_id);",
+                  "    console.log('✅ user_id saved:', jsonData.user_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"Test1234!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login and receive a JWT. The test script auto-saves `access_token` → `{{auth_token}}` and `user_id` → `{{user_id}}`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Content",
+      "item": [
+        {
+          "name": "Upload Content",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.content_id) {",
+                  "    pm.collectionVariables.set('content_id', jsonData.content_id);",
+                  "    console.log('✅ content_id saved:', jsonData.content_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "Select a PDF, TXT, or DOCX file to upload"
+                },
+                {
+                  "key": "title",
+                  "value": "My Study Material",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/content/upload",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "upload"]
+            },
+            "description": "Upload a file (PDF, TXT, DOCX). Max size 100 MB. The AI service will auto-generate a quiz via RabbitMQ after upload. Auto-saves `content_id`."
+          }
+        },
+        {
+          "name": "List Content",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/content/list",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "list"]
+            },
+            "description": "List all uploaded content for the authenticated user."
+          }
+        },
+        {
+          "name": "Get Content by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/content/{{content_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "{{content_id}}"]
+            },
+            "description": "Retrieve a single content item by its ID."
+          }
+        },
+        {
+          "name": "Delete Content",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/content/{{content_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "{{content_id}}"]
+            },
+            "description": "Delete a content item by ID."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quiz",
+      "item": [
+        {
+          "name": "List Quizzes for Content",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.items && jsonData.items.length > 0) {",
+                  "    pm.collectionVariables.set('quiz_id', jsonData.items[0].quiz_id);",
+                  "    console.log('✅ quiz_id saved:', jsonData.items[0].quiz_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/quiz/list?content_id={{content_id}}&page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", "list"],
+              "query": [
+                { "key": "content_id", "value": "{{content_id}}" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "List all quizzes generated for a given content. Auto-saves first `quiz_id`."
+          }
+        },
+        {
+          "name": "Get Quiz Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/quiz/{{quiz_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", "{{quiz_id}}"]
+            },
+            "description": "Get full quiz details including all questions and options."
+          }
+        },
+        {
+          "name": "Submit Quiz Answers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": \"<replace-with-question-id>\",\n      \"selected_option\": 0\n    },\n    {\n      \"question_id\": \"<replace-with-question-id>\",\n      \"selected_option\": 2\n    }\n  ]\n}",
+              "options": {
+                "raw": { "language": "json" }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/quiz/{{quiz_id}}/submit",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", "{{quiz_id}}", "submit"]
+            },
+            "description": "Submit answers for a quiz. Returns score, total, correct count, and per-question results with explanations.\n\n`selected_option` is 0-indexed (0 = first option, 1 = second, etc.)"
+          }
+        },
+        {
+          "name": "Quiz Attempt History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/quiz/{{quiz_id}}/history?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", "{{quiz_id}}", "history"],
+              "query": [
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Get previous attempt history for a specific quiz."
+          }
+        },
+        {
+          "name": "Quiz Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/quiz/{{quiz_id}}/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", "{{quiz_id}}", "stats"]
+            },
+            "description": "Get aggregate statistics for a specific quiz."
+          }
+        },
+        {
+          "name": "User Stats (All Quizzes)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/quiz/user-stats?user_id={{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", "user-stats"],
+              "query": [
+                { "key": "user_id", "value": "{{user_id}}" }
+              ]
+            },
+            "description": "Get a summary of a user's performance across all quizzes."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Progress",
+      "item": [
+        {
+          "name": "Get Progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8006/progress",
+              "host": ["http://localhost"],
+              "port": "8006",
+              "path": ["progress"]
+            },
+            "description": "Get the authenticated user's learning progress. Calls the progress service directly (not behind Nginx gateway)."
+          }
+        },
+        {
+          "name": "Get Streak",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8006/streak",
+              "host": ["http://localhost"],
+              "port": "8006",
+              "path": ["streak"]
+            },
+            "description": "Get the authenticated user's current activity streak."
+          }
+        },
+        {
+          "name": "Get Leaderboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8006/leaderboard",
+              "host": ["http://localhost"],
+              "port": "8006",
+              "path": ["leaderboard"]
+            },
+            "description": "Get the global leaderboard rankings."
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Service (Direct)",
+      "item": [
+        {
+          "name": "Retrigger Quiz Generation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content_id\": \"{{content_id}}\",\n  \"user_id\": \"{{user_id}}\",\n  \"file_path\": \"/root/uploads/<your-file-name>\",\n  \"title\": \"My Study Material\"\n}",
+              "options": {
+                "raw": { "language": "json" }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8004/retrigger",
+              "host": ["http://localhost"],
+              "port": "8004",
+              "path": ["retrigger"]
+            },
+            "description": "Manually trigger AI quiz generation for an existing content item. Useful for re-generating quizzes or testing the AI pipeline without re-uploading."
+          }
+        }
+      ]
+    }
+  ]
+}
